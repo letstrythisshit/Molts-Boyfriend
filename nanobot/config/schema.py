@@ -164,6 +164,14 @@ class RoleConfigEntry(Base):
     memory_scope: str = ""
 
 
+class ModelRoutingConfig(Base):
+    """Model routing configuration for the orchestration engine."""
+
+    default_model: str = ""  # empty = use agents.defaults.model
+    role_models: dict[str, str] = Field(default_factory=dict)  # role_name -> model
+    fallback_models: list[str] = Field(default_factory=list)  # global fallback chain
+
+
 class OrchestrationConfig(Base):
     """Orchestration engine configuration."""
 
@@ -174,6 +182,7 @@ class OrchestrationConfig(Base):
     circuit_breaker_threshold: int = 3  # consecutive failures before pausing workflow
     state_db_path: str = ""  # empty = default (~/.nanobot/state.db)
     roles: list[RoleConfigEntry] = Field(default_factory=list)
+    model_routing: ModelRoutingConfig = Field(default_factory=ModelRoutingConfig)
 
 
 class Config(BaseSettings):

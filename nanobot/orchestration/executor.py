@@ -60,7 +60,6 @@ class AgentExecutor:
         *,
         provider=None,
         workspace=None,
-        config=None,
     ) -> TaskResult:
         """Execute a task with the given role configuration.
 
@@ -88,7 +87,7 @@ class AgentExecutor:
         try:
             async with self._semaphore:
                 result = await asyncio.wait_for(
-                    self._run_agent(task, role, agent_id, provider, workspace, config),
+                    self._run_agent(task, role, agent_id, provider, workspace),
                     timeout=timeout,
                 )
                 return result
@@ -111,22 +110,18 @@ class AgentExecutor:
         agent_id: str,
         provider,
         workspace,
-        config,
     ) -> TaskResult:
         """Run the agent loop for a task.
 
-        In the full implementation, this creates a parameterized AgentLoop
-        with role-filtered tools and the role's system prompt.  For the MVP,
-        we provide a direct execution path that can work without the full
-        AgentLoop integration.
+        Creates a parameterized AgentLoop with role-filtered tools and the
+        role's system prompt.  Falls back to a stub if no provider is given.
         """
         scratchpad = Scratchpad(self._store, agent_id)
 
         try:
-            # Full AgentLoop integration path
-            if provider and workspace and config:
+            if provider and workspace:
                 output = await self._run_with_agent_loop(
-                    task, role, agent_id, provider, workspace, config
+                    task, role, agent_id, provider, workspace
                 )
             else:
                 # Lightweight fallback for testing / when no provider available
@@ -146,7 +141,6 @@ class AgentExecutor:
         agent_id: str,
         provider,
         workspace,
-        config,
     ) -> str:
         """Execute task using the full AgentLoop with role parameterization.
 
@@ -155,20 +149,30 @@ class AgentExecutor:
         system prompt, and iteration limits.
         """
         from nanobot.agent.loop import AgentLoop
+        from nanobot.bus.queue import MessageBus
+
+        model = provider.get_default_model()
+        if role and role.model:
+            model = role.model
+
+        max_iter = role.max_iterations if role else task.max_iterations
 
         loop = AgentLoop(
+            bus=MessageBus(),
             provider=provider,
             workspace=workspace,
-            config=config,
+            model=model,
+            max_iterations=max_iter,
+            restrict_to_workspace=True,
             role=role,
         )
 
-        result = await loop.process_direct(
-            message=task.description,
-            max_iterations=role.max_iterations if role else task.max_iterations,
+        response = await loop.process_direct(
+            content=task.description,
+            session_key=f"wf:{task.workflow_id}:task:{task.id}",
         )
 
-        return result or ""
+        return response.content if response else ""
 
     async def cancel_task(self, task_id: str) -> bool:
         """Cancel a running task."""

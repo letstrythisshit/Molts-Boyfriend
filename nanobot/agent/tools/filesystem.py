@@ -9,6 +9,31 @@ from nanobot.agent.tools.base import Tool
 from nanobot.utils.helpers import build_image_content_blocks, detect_image_mime
 
 
+_SENSITIVE_PATTERNS = (
+    "config.json",
+    ".env",
+    "credentials",
+    "secrets",
+    "id_rsa",
+    "id_ed25519",
+    "id_ecdsa",
+    "id_dsa",
+    ".pem",
+    ".key",
+    "api_key",
+    "apikey",
+    "token.json",
+    ".netrc",
+    ".pgpass",
+)
+
+
+def _is_sensitive_path(p: Path) -> bool:
+    """Check if a path likely contains sensitive credentials."""
+    name_lower = p.name.lower()
+    return any(pat in name_lower for pat in _SENSITIVE_PATTERNS)
+
+
 def _resolve_path(
     path: str,
     workspace: Path | None = None,
@@ -98,6 +123,8 @@ class ReadFileTool(_FsTool):
             if not path:
                 return "Error reading file: Unknown path"
             fp = self._resolve(path)
+            if _is_sensitive_path(fp):
+                return "Error: Access denied \u2014 this file may contain sensitive credentials."
             if not fp.exists():
                 return f"Error: File not found: {path}"
             if not fp.is_file():

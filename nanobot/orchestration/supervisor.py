@@ -205,7 +205,6 @@ class Supervisor:
                     role=planner_role,
                     provider=self._provider,
                     workspace=self._workspace,
-                    config=self._config,
                 )
                 if result.success and result.output:
                     tasks = self._parse_task_plan(result.output, workflow.id)
@@ -319,7 +318,6 @@ class Supervisor:
                     role=role,
                     provider=self._provider,
                     workspace=self._workspace,
-                    config=self._config,
                 ))
 
             results = await asyncio.gather(*coros, return_exceptions=True)
